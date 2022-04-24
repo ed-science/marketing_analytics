@@ -42,18 +42,18 @@ class ReplaySimulator(object):
         
         results = []
 
-        for iteration in tqdm(range(0, self.n_iterations)):
-        
+        for iteration in tqdm(range(self.n_iterations)):
+
             self.reset()
-            
+
             total_rewards = 0
             fraction_relevant = np.zeros(self.n_visits)
 
-            for visit in range(0, self.n_visits):
-            
+            for visit in range(self.n_visits):
+
                 found_match = False
                 while not found_match:
-                
+
                     # choose a random visitor
                     visitor_idx = np.random.randint(self.n_visitors)
                     visitor_id = self.visitors[visitor_idx]
@@ -61,32 +61,35 @@ class ReplaySimulator(object):
                     # select an item to offer the visitor
                     item_idx = self.select_item()
                     item_id = self.items[item_idx]
-                    
+
                     # if this interaction exists in the history, count it
                     reward = self.reward_history.query(
-                        '{} == @item_id and {} == @visitor_id'.format(self.item_col_name, self.visitor_col_name))[self.reward_col_name]
-                    
+                        f'{self.item_col_name} == @item_id and {self.visitor_col_name} == @visitor_id'
+                    )[self.reward_col_name]
+
+
                     found_match = reward.shape[0] > 0
-                
+
                 reward_value = reward.iloc[0]
-                
+
                 self.record_result(visit, item_idx, reward_value)
-                
+
                 ## record metrics
                 total_rewards += reward_value
                 fraction_relevant[visit] = total_rewards * 1. / (visit + 1)
-                
-                result = {}
-                result['iteration'] = iteration
-                result['visit'] = visit
-                result['item_id'] = item_id
-                result['visitor_id'] = visitor_id
-                result['reward'] = reward_value
-                result['total_reward'] = total_rewards
-                result['fraction_relevant'] = total_rewards * 1. / (visit + 1)
-                
+
+                result = {
+                    'iteration': iteration,
+                    'visit': visit,
+                    'item_id': item_id,
+                    'visitor_id': visitor_id,
+                    'reward': reward_value,
+                    'total_reward': total_rewards,
+                    'fraction_relevant': total_rewards * 1.0 / (visit + 1),
+                }
+
                 results.append(result)
-        
+
         return results
         
     def select_item(self):
@@ -149,14 +152,11 @@ class EpsilonGreedyReplayer(ReplaySimulator):
     
     def select_item(self):
         
-        # decide to explore or exploit
-        if np.random.uniform() < self.epsilon: # explore
-            item_id = super(EpsilonGreedyReplayer, self).select_item()
-            
-        else: # exploit
-            item_id = np.argmax(self.n_item_rewards)
-            
-        return item_id
+        return (
+            super(EpsilonGreedyReplayer, self).select_item()
+            if np.random.uniform() < self.epsilon
+            else np.argmax(self.n_item_rewards)
+        )
     
 
 class ThompsonSamplingReplayer(ReplaySimulator):
